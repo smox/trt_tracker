@@ -7,14 +7,16 @@ import 'dart:math';
 
 import 'package:trt_tracker/logic/ui_logic.dart';
 import 'package:trt_tracker/presentation/screens/calendar_screen.dart';
+import 'package:trt_tracker/presentation/screens/plans_screen.dart'; // NEU
+import 'package:trt_tracker/presentation/screens/settings_screen.dart'; // NEU
 import 'package:trt_tracker/presentation/widgets/particle_background.dart';
 import '../../logic/providers.dart';
-import '../../data/models/enums.dart'; // Für MassUnit
+import '../../data/models/enums.dart';
 import 'add_injection_screen.dart';
 import 'analytics_screen.dart';
 import '../../logic/trt_milestones.dart';
 import 'milestones_screen.dart';
-import '../../logic/calculator.dart'; // WICHTIG: Für die Umrechnung
+import '../../logic/calculator.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -34,7 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
+    // ... Animation Init (identisch)
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -71,9 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _onGaugeTap() {
     final hapticsEnabled = ref.read(hapticFeedbackProvider);
-    if (hapticsEnabled) {
-      HapticFeedback.lightImpact();
-    }
+    if (hapticsEnabled) HapticFeedback.lightImpact();
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
@@ -90,9 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final currentLevel = ref.watch(
-      currentLevelProvider,
-    ); // Der Wert in DEINER Einheit (z.B. 8.12)
+    final currentLevel = ref.watch(currentLevelProvider);
     final userProfileAsync = ref.watch(userProfileProvider);
     final userProfile = userProfileAsync.value;
     final injections = ref.watch(injectionListProvider).value ?? [];
@@ -104,7 +102,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       'de_DE',
     ).format(DateTime.now());
 
-    // --- MILESTONE LOGIK ---
     DateTime startDate;
     if (injections.isNotEmpty) {
       final oldestInjection = injections.reduce(
@@ -119,23 +116,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final daysPassed = DateTime.now().difference(startDate).inDays;
     final milestone = TRTEffectsLogic.getCurrentMilestone(daysPassed);
 
-    // --- FARB LOGIK & RUNDUNG (FIX) ---
-
-    // 1. Für die Farbe brauchen wir IMMER ng/dL als Basis
-    // Wir holen uns die Einheit aus dem Profil oder nehmen Standard ng_dl
     final unit = userProfile?.preferredUnit ?? MassUnit.ng_dl;
-
-    // Wir rechnen den aktuellen Wert (egal ob ng/ml oder nmol/l) in ng/dl um,
-    // damit die UI-Logik (TRTColors) weiß, ob es rot/grün/gelb ist.
     double normalizedForColor = TestosteroneCalculator.normalizeToNgDl(
       currentLevel,
       unit,
     );
-
     final dynamicColor = TRTColors.getColorForLevel(normalizedForColor);
     final statusText = TRTColors.getStatusText(normalizedForColor);
-
-    // 2. Für den Text runden wir auf 2 Nachkommastellen
     String displayString = currentLevel.toStringAsFixed(2);
 
     return Scaffold(
@@ -170,14 +157,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // Settings Modal (wie gehabt)
-            },
-          ),
-        ],
+        actions: [], // HIER IST DER FIX: Action (Settings Icon) entfernt!
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -198,7 +178,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const SizedBox(height: 80),
-
                   // GAUGE
                   GestureDetector(
                     onTap: _onGaugeTap,
@@ -245,9 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       },
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -263,10 +240,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 40),
-
-                  // MILESTONE CARD
+                  // MILESTONE
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -337,7 +312,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // BOTTOM NAV PLACEHOLDER
+          // BOTTOM NAV (NEU: 4 ICONS)
           Positioned(
             bottom: 0,
             left: 0,
@@ -358,28 +333,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
+                      // 1. Home
                       Icon(Icons.home_filled, color: dynamicColor, size: 30),
+
+                      // 2. Kalender
                       IconButton(
                         icon: const Icon(
                           Icons.calendar_month_outlined,
                           size: 26,
                         ),
                         color: Colors.grey,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const CalendarScreen(),
+                        onPressed:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CalendarScreen(),
+                              ),
                             ),
-                          );
-                        },
                       ),
+
+                      // 3. NEU: PLÄNE
+                      IconButton(
+                        icon: const Icon(Icons.fact_check_outlined, size: 26),
+                        color: Colors.grey,
+                        onPressed:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PlansScreen(),
+                              ),
+                            ),
+                      ),
+
+                      // 4. NEU: SETTINGS (von oben hierher verschoben)
                       IconButton(
                         icon: const Icon(Icons.settings_outlined, size: 26),
                         color: Colors.grey,
-                        onPressed: () {
-                          // TODO Settings
-                        },
+                        onPressed:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SettingsScreen(),
+                              ),
+                            ),
                       ),
                     ],
                   ),
@@ -393,29 +389,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-// --- HIER IST DIE KLASSE DIE GEFEHLT HAT ---
 class GaugePainter extends CustomPainter {
   final Color color;
   final double glowRadius;
-
   GaugePainter({required this.color, required this.glowRadius});
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width / 2) - 20;
-
-    // 1. Hintergrund-Track
     final bgPaint =
         Paint()
           ..color = Colors.white.withOpacity(0.05)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 20
           ..strokeCap = StrokeCap.round;
-
     const startAngle = 135 * 3.14159 / 180;
     const sweepAngle = 270 * 3.14159 / 180;
-
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
@@ -423,8 +412,6 @@ class GaugePainter extends CustomPainter {
       false,
       bgPaint,
     );
-
-    // 2. Glow Effekt
     final glowPaint =
         Paint()
           ..color = color.withOpacity(0.4)
@@ -432,7 +419,6 @@ class GaugePainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 20
           ..strokeCap = StrokeCap.round;
-
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
@@ -440,8 +426,6 @@ class GaugePainter extends CustomPainter {
       false,
       glowPaint,
     );
-
-    // 3. Vordergrund Ring
     final gradient = SweepGradient(
       startAngle: startAngle,
       endAngle: startAngle + sweepAngle,
@@ -449,7 +433,6 @@ class GaugePainter extends CustomPainter {
       colors: [color.withOpacity(0.5), color],
       transform: GradientRotation(startAngle - 0.1),
     );
-
     final valuePaint =
         Paint()
           ..shader = gradient.createShader(
@@ -458,7 +441,6 @@ class GaugePainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 20
           ..strokeCap = StrokeCap.round;
-
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
@@ -469,7 +451,6 @@ class GaugePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant GaugePainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.glowRadius != glowRadius;
-  }
+  bool shouldRepaint(covariant GaugePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.glowRadius != glowRadius;
 }

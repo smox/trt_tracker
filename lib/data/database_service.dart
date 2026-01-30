@@ -19,16 +19,14 @@ class DatabaseService {
 
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
-    final path = join(
-      dbPath,
-      'trt_tracker_v2.db',
-    ); // Name leicht geändert, sicherheitshalber
+    // Name geändert, um sauberen Neustart zu erzwingen (Tabelle neu)
+    final path = join(dbPath, 'trt_tracker_v3.db');
 
     return await openDatabase(path, version: 1, onCreate: _onCreate);
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // 1. User Profile Tabelle (Angepasst an dein Model)
+    // 1. User Profile
     await db.execute('''
       CREATE TABLE user_profile (
         id TEXT PRIMARY KEY,
@@ -45,8 +43,7 @@ class DatabaseService {
       )
     ''');
 
-    // Initialen leeren User anlegen (ID '1'), damit wir später einfach UPDATEN können
-    // Wir speichern die ID als String '1', da unser Model String erwartet
+    // Initialen leeren User anlegen
     await db.execute(
       "INSERT INTO user_profile (id, correction_factor) VALUES ('1', 1.0)",
     );
@@ -78,19 +75,22 @@ class DatabaseService {
       )
     ''');
 
-    // 4. Injektions-Planer (Settings)
+    // 4. NEU: Injektions-PLÄNE
     await db.execute('''
-      CREATE TABLE injection_schedule (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        day_of_week INTEGER,
-        time_of_day TEXT,
-        default_amount_mg REAL,
-        default_ester TEXT,
-        default_method TEXT,
-        is_active INTEGER DEFAULT 1
+      CREATE TABLE injection_plans (
+        id TEXT PRIMARY KEY,
+        amount_mg REAL,
+        ester_index INTEGER,
+        method_index INTEGER,
+        interval_days INTEGER,
+        next_due_date INTEGER,
+        reminder_hour INTEGER,
+        reminder_minute INTEGER,
+        is_active INTEGER DEFAULT 1,
+        spot TEXT
       )
     ''');
 
-    print("✅ Datenbank Tabellen korrekt erstellt!");
+    print("✅ Datenbank Tabellen (v3) korrekt erstellt!");
   }
 }

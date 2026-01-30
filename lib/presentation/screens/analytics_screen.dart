@@ -2,8 +2,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:trt_tracker/data/models/injection_model.dart';
 import 'package:trt_tracker/data/models/lab_result_model.dart';
-import 'package:trt_tracker/data/models/enums.dart'; // Für MassUnit
+import 'package:trt_tracker/data/models/enums.dart';
 import 'package:trt_tracker/logic/calculator.dart';
 import 'package:trt_tracker/logic/providers.dart';
 import 'package:trt_tracker/logic/ui_logic.dart';
@@ -85,13 +86,41 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 
   List<FlSpot> _generateChartData(
-    dynamic injections,
+    List<InjectionModel> realInjections,
     dynamic userProfile,
     List<LabResultModel> calibrationPoints,
+    dynamic plans,
     DateTime start,
     DateTime end,
   ) {
-    if (injections == null || userProfile == null) return [];
+    if (userProfile == null) return [];
+
+    // 1. Ghost Injections generieren
+    List<InjectionModel> allInjections = [...realInjections];
+
+    if (plans != null && plans.isNotEmpty) {
+      for (var plan in plans) {
+        if (!plan.isActive) continue;
+
+        DateTime simDate = plan.nextDueDate;
+        // Wir simulieren bis zum Ende des Graphen + Buffer
+        while (simDate.isBefore(end.add(const Duration(days: 10)))) {
+          allInjections.add(
+            InjectionModel(
+              id: 'sim_${simDate.millisecondsSinceEpoch}',
+              timestamp: simDate,
+              amountMg: plan.amountMg,
+              ester: plan.ester,
+              method: plan.method,
+              // FIX: createdAt als int (0)
+              createdAt: 0,
+            ),
+          );
+          simDate = simDate.add(Duration(days: plan.intervalDays));
+        }
+      }
+    }
+
     final calculator = TestosteroneCalculator();
     List<FlSpot> spots = [];
 
@@ -105,7 +134,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       final targetTime = start.add(Duration(hours: i));
       double finalLevel = calculator.calculateLevelAt(
         targetTime: targetTime,
-        injections: injections,
+        injections: allInjections,
         userProfile: userProfile,
         calibrationPoints: calibrationPoints,
       );
@@ -120,11 +149,13 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return spots;
   }
 
+  // --- REST UNVERÄNDERT (nur build Methode) ---
   @override
   Widget build(BuildContext context) {
     final injections = ref.watch(injectionListProvider).value ?? [];
     final userProfile = ref.watch(userProfileProvider).value;
     final calibrationPoints = ref.watch(calibrationPointsProvider).value ?? [];
+    final plans = ref.watch(injectionPlanProvider).value ?? [];
 
     final unitLabel =
         userProfile?.preferredUnit
@@ -135,7 +166,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         '';
     final userUnit = userProfile?.preferredUnit ?? MassUnit.ng_ml;
 
-    // Therapy Start
     DateTime therapyStart;
     if (injections.isNotEmpty) {
       final oldest = injections.reduce(
@@ -159,9 +189,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       injections,
       userProfile,
       calibrationPoints,
+      plans,
       start,
       end,
     );
+
     final nowMillis = DateTime.now().millisecondsSinceEpoch.toDouble();
     List<FlSpot> pastSpots = [];
     List<FlSpot> futureSpots = [];
@@ -178,8 +210,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       }
     }
 
-    // --- RANGES ANPASSEN ---
-    // Wir konvertieren die Referenzwerte (300 und 1100 ng/dL) in die User-Einheit
     double minRef = TestosteroneCalculator.convertFromNormalized(300, userUnit);
     double maxRef = TestosteroneCalculator.convertFromNormalized(
       1100,
@@ -191,7 +221,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       for (var spot in allSpots) {
         if (spot.y > maxY) maxY = spot.y;
       }
-      maxY = maxY * 1.1; // 10% Padding oben
+      maxY = maxY * 1.1;
     }
     double minY = 0.0;
 
@@ -298,8 +328,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           gridData: FlGridData(
                             show: true,
                             drawVerticalLine: false,
-                            horizontalInterval:
-                                (maxY - minY) / 4, // Dynamisches Grid
+                            horizontalInterval: (maxY - minY) / 4,
                             getDrawingHorizontalLine:
                                 (_) => const FlLine(
                                   color: Colors.white10,
@@ -318,15 +347,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 reservedSize: 40,
-                                // Interval dynamisch basierend auf der Höhe
                                 interval: (maxY - minY) / 4,
                                 getTitlesWidget: (value, meta) {
                                   if (value < 0) return const SizedBox();
-                                  // Hier eventuell auch formatieren
                                   return Text(
-                                    value
-                                        .toInt()
-                                        .toString(), // Y-Achse darf ganze Zahlen bleiben oder value.toStringAsFixed(1)
+                                    value.toInt().toString(),
                                     style: const TextStyle(
                                       color: Colors.grey,
                                       fontSize: 10,
@@ -367,34 +392,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           extraLinesData: ExtraLinesData(
                             horizontalLines: [
                               HorizontalLine(
-                                y: minRef, // Dynamisch berechnet!
+                                y: minRef,
                                 color: Colors.red.withOpacity(0.3),
                                 strokeWidth: 1,
                                 dashArray: [5, 5],
-                                label: HorizontalLineLabel(
-                                  show: true,
-                                  alignment: Alignment.topRight,
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 9,
-                                  ),
-                                  labelResolver: (_) => "Min",
-                                ),
                               ),
                               HorizontalLine(
-                                y: maxRef, // Dynamisch berechnet!
+                                y: maxRef,
                                 color: TRTColors.supra.withOpacity(0.3),
                                 strokeWidth: 1,
                                 dashArray: [5, 5],
-                                label: HorizontalLineLabel(
-                                  show: true,
-                                  alignment: Alignment.bottomRight,
-                                  style: TextStyle(
-                                    color: TRTColors.supra,
-                                    fontSize: 9,
-                                  ),
-                                  labelResolver: (_) => "Max",
-                                ),
                               ),
                             ],
                             verticalLines: [
@@ -405,16 +412,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                   color: Colors.white.withOpacity(0.8),
                                   strokeWidth: 2,
                                   dashArray: [5, 5],
-                                  label: VerticalLineLabel(
-                                    show: true,
-                                    alignment: Alignment.topLeft,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    labelResolver: (_) => "Jetzt",
-                                  ),
                                 ),
                             ],
                           ),
@@ -443,8 +440,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               LineChartBarData(
                                 spots: futureSpots,
                                 isCurved: true,
-                                color: const Color(0xFF64FFDA).withOpacity(0.6),
-                                barWidth: 1.5,
+                                color: const Color(0xFF64FFDA).withOpacity(0.4),
+                                barWidth: 2,
                                 isStrokeCapRound: true,
                                 dotData: const FlDotData(show: false),
                               ),
@@ -463,7 +460,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14,
                                   );
-                                  // TOOLTIP AUF 2 STELLEN
                                   return LineTooltipItem(
                                     '${touchedSpot.y.toStringAsFixed(2)} $unitLabel \n${DateFormat('dd.MM HH:mm').format(DateTime.fromMillisecondsSinceEpoch(touchedSpot.x.toInt()))}',
                                     textStyle,
@@ -498,9 +494,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final isSelected = _selectedRange == range;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _selectedRange = range;
-        });
+        setState(() => _selectedRange = range);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -535,7 +529,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     if (count == 0) return const SizedBox();
     double avg = sum / count;
 
-    // FOOTER AUF 2 STELLEN
     return Container(
       padding: const EdgeInsets.all(24),
       color: const Color(0xFF1E1E1E),

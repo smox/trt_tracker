@@ -1,13 +1,13 @@
 import 'enums.dart';
 
 class InjectionModel {
-  final String id; // UUID
+  final String id;
   final DateTime timestamp;
   final double amountMg;
   final EsterType ester;
   final ApplicationMethod method;
   final String? spot;
-  final DateTime createdAt;
+  final int createdAt;
 
   InjectionModel({
     required this.id,
@@ -19,34 +19,29 @@ class InjectionModel {
     required this.createdAt,
   });
 
-  factory InjectionModel.fromMap(Map<String, dynamic> map) {
-    return InjectionModel(
-      id: map['id'] as String,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
-      amountMg: (map['amount_mg'] as num).toDouble(),
-      // Wir speichern Enums als String in der DB (z.B. "EsterType.enanthate")
-      ester: EsterType.values.firstWhere(
-        (e) => e.toString() == map['ester_type'],
-        orElse: () => EsterType.enanthate, // Fallback
-      ),
-      method: ApplicationMethod.values.firstWhere(
-        (e) => e.toString() == map['application_method'],
-        orElse: () => ApplicationMethod.im,
-      ),
-      spot: map['spot'] as String?,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
-    );
-  }
-
+  // WICHTIG: Die Keys hier müssen exakt den Spaltennamen in database_service.dart entsprechen!
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'timestamp': timestamp.millisecondsSinceEpoch,
       'amount_mg': amountMg,
-      'ester_type': ester.toString(),
-      'application_method': method.toString(),
+      'ester_index': ester.index, // Datenbank erwartet ester_index (int)
+      'method_index': method.index, // Datenbank erwartet method_index (int)
       'spot': spot,
-      'created_at': createdAt.millisecondsSinceEpoch,
+      'created_at': createdAt,
     };
+  }
+
+  factory InjectionModel.fromMap(Map<String, dynamic> map) {
+    return InjectionModel(
+      id: map['id'],
+      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp']),
+      amountMg: map['amount_mg'],
+      // Hier wandeln wir den Int aus der DB zurück in das Enum
+      ester: EsterType.values[map['ester_index']],
+      method: ApplicationMethod.values[map['method_index']],
+      spot: map['spot'],
+      createdAt: map['created_at'] ?? 0,
+    );
   }
 }

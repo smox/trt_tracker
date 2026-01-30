@@ -1,0 +1,187 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trt_tracker/data/models/enums.dart';
+import 'package:trt_tracker/logic/providers.dart';
+import 'package:trt_tracker/logic/ui_logic.dart';
+
+class SettingsScreen extends ConsumerWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userProfile = ref.watch(userProfileProvider).value;
+    final hapticEnabled = ref.watch(hapticFeedbackProvider);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      appBar: AppBar(
+        title: const Text("Einstellungen"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body:
+          userProfile == null
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildSectionHeader("Allgemein"),
+
+                  // 1. WOCHENSTART
+                  _buildSettingsTile(
+                    icon: Icons.calendar_today,
+                    title: "Wochenstart",
+                    subtitle: "Legt fest, an welchem Tag der Kalender beginnt.",
+                    trailing: DropdownButton<int>(
+                      value: userProfile.startOfWeek,
+                      dropdownColor: const Color(0xFF1E1E1E),
+                      style: const TextStyle(color: Colors.white),
+                      underline: Container(),
+                      items: const [
+                        DropdownMenuItem(value: 1, child: Text("Montag")),
+                        DropdownMenuItem(value: 7, child: Text("Sonntag")),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref
+                              .read(userProfileProvider.notifier)
+                              .updateSettings(startOfWeek: val);
+                        }
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 2. EINHEITEN
+                  _buildSettingsTile(
+                    icon: Icons.science,
+                    title: "Bevorzugte Einheit",
+                    subtitle: "Für die Anzeige im Dashboard und Graphen.",
+                    trailing: DropdownButton<MassUnit>(
+                      value: userProfile.preferredUnit,
+                      dropdownColor: const Color(0xFF1E1E1E),
+                      style: const TextStyle(color: Colors.white),
+                      underline: Container(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: MassUnit.ng_ml,
+                          child: Text("ng/mL"),
+                        ),
+                        DropdownMenuItem(
+                          value: MassUnit.ng_dl,
+                          child: Text("ng/dL"),
+                        ),
+                        DropdownMenuItem(
+                          value: MassUnit.nmol_l,
+                          child: Text("nmol/L"),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref
+                              .read(userProfileProvider.notifier)
+                              .updateSettings(preferredUnit: val);
+                          ref.invalidate(currentLevelProvider);
+                        }
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  _buildSectionHeader("Bedienung"),
+
+                  // 3. HAPTIK
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    tileColor: const Color(0xFF1E1E1E),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    secondary: const Icon(
+                      Icons.vibration,
+                      color: Color(0xFF64FFDA),
+                    ),
+                    title: const Text(
+                      "Haptisches Feedback",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      "Vibration bei Interaktionen",
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    value: hapticEnabled,
+                    activeColor: const Color(0xFF64FFDA),
+                    onChanged: (val) {
+                      ref.read(hapticFeedbackProvider.notifier).state = val;
+                    },
+                  ),
+
+                  const SizedBox(height: 30),
+                  const Center(
+                    child: Text(
+                      "Version 1.0.0",
+                      style: TextStyle(color: Colors.white24, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: Color(0xFF64FFDA),
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF64FFDA)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
