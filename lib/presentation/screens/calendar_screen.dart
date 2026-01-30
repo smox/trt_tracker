@@ -51,7 +51,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     // 1. Daten laden
     final injectionsAsync = ref.watch(injectionListProvider);
-    // NEU: User Profile laden, um den Start der Woche zu wissen
+    // User Profile laden, um den Start der Woche zu wissen
     final userProfile = ref.watch(userProfileProvider).value;
 
     // Logik: Wenn im Profil 7 steht -> Sonntag, sonst -> Montag
@@ -87,7 +87,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 focusedDay: _focusedDay,
                 calendarFormat: _calendarFormat,
 
-                // HIER IST DIE ÄNDERUNG: Starttag festlegen
                 startingDayOfWeek: startOfWeek,
 
                 // 1. HEADER STYLE (Monatsname & Pfeile)
@@ -257,9 +256,28 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         backgroundColor: const Color(0xFF64FFDA),
         child: const Icon(Icons.add, color: Colors.black),
         onPressed: () {
+          // HIER IST DER FIX:
+          // 1. Wir nehmen das ausgewählte Datum (oder Heute als Fallback)
+          DateTime baseDate = _selectedDay ?? DateTime.now();
+
+          // 2. Wir nehmen die aktuelle Uhrzeit (damit es nicht 00:00 ist)
+          final now = DateTime.now();
+
+          // 3. Kombinieren
+          final dateWithTime = DateTime(
+            baseDate.year,
+            baseDate.month,
+            baseDate.day,
+            now.hour,
+            now.minute,
+          );
+
+          // 4. Übergeben an AddInjectionScreen
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const AddInjectionScreen()),
+            MaterialPageRoute(
+              builder: (_) => AddInjectionScreen(initialDate: dateWithTime),
+            ),
           );
         },
       ),
