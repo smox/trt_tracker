@@ -1,4 +1,4 @@
-package com.example.trt_tracker
+package org.sm0x.trt_tracker
 
 import io.flutter.embedding.android.FlutterActivity
 
