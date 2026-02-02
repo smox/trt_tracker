@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // NEU
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:trt_tracker/data/database_service.dart';
 import 'package:trt_tracker/presentation/screens/splash_screen.dart';
-import 'package:trt_tracker/logic/notification_service.dart'; // NEU
+import 'package:trt_tracker/logic/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lädt die Formatierungsregeln für Deutsch
+  // Initialisierung für Formatter
   await initializeDateFormatting('de_DE', null);
 
-  // DB Initialisierung
   await DatabaseService().database;
-
-  // NEU: Notifications initialisieren
   await NotificationService().init();
 
   runApp(const ProviderScope(child: TRTApp()));
@@ -40,6 +38,20 @@ class TRTApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
+
+      // --- HIER IST DIE MAGIE FÜR DEN WOCHENSTART ---
+      locale: const Locale('de', 'DE'), // Erzwingt Deutsch (Montag Start)
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('de', 'DE'), // Deutsch
+        Locale('en', 'US'), // Englisch
+      ],
+
+      // ----------------------------------------------
       home: const SplashScreen(),
     );
   }
