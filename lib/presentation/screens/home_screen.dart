@@ -7,8 +7,8 @@ import 'dart:math';
 
 import 'package:trt_tracker/logic/ui_logic.dart';
 import 'package:trt_tracker/presentation/screens/calendar_screen.dart';
-import 'package:trt_tracker/presentation/screens/plans_screen.dart'; // NEU
-import 'package:trt_tracker/presentation/screens/settings_screen.dart'; // NEU
+import 'package:trt_tracker/presentation/screens/plans_screen.dart';
+import 'package:trt_tracker/presentation/screens/settings_screen.dart';
 import 'package:trt_tracker/presentation/widgets/particle_background.dart';
 import '../../logic/providers.dart';
 import '../../data/models/enums.dart';
@@ -17,6 +17,8 @@ import 'analytics_screen.dart';
 import '../../logic/trt_milestones.dart';
 import 'milestones_screen.dart';
 import '../../logic/calculator.dart';
+// NEU: Import für Notification Service, falls wir ihn hier direkt bräuchten (aktuell nicht zwingend, aber gut zu haben)
+import '../../logic/notification_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -36,7 +38,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // ... Animation Init (identisch)
+
+    // Notification Permission Check beim Start (leicht verzögert)
+    Future.delayed(const Duration(seconds: 1), () {
+      NotificationService().requestPermissions();
+    });
+
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -97,6 +104,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final userName = userProfile?.name ?? "User";
     final unitLabel = _formatUnit(userProfile?.preferredUnit.toString());
+
+    // HIER: Deutsches Datumsformat erzwingen, falls System-Locale noch spinnt
     final dateString = DateFormat(
       'EEE, d. MMM',
       'de_DE',
@@ -132,9 +141,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         elevation: 0,
         title: Row(
           children: [
-            const CircleAvatar(
-              backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=11'),
+            // Offline Avatar
+            CircleAvatar(
               radius: 16,
+              backgroundColor: Colors.white.withOpacity(0.1),
+              child: const Icon(Icons.person, color: Colors.white70, size: 20),
             ),
             const SizedBox(width: 12),
             Column(
@@ -157,17 +168,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
         ),
-        actions: [], // HIER IST DER FIX: Action (Settings Icon) entfernt!
+        // FIX: SETTINGS BUTTON WIEDER OBEN RECHTS
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white70),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AddInjectionScreen()),
-          );
-        },
-        backgroundColor: const Color(0xFF64FFDA),
-        child: const Icon(Icons.add, color: Colors.black),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(
+          bottom: 50.0,
+          right: 10.0,
+        ), // Schiebt den Button über die Nav-Bar
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AddInjectionScreen(),
+              ),
+            );
+          },
+          backgroundColor: const Color(0xFF64FFDA),
+          child: const Icon(Icons.add, color: Colors.black),
+        ),
       ),
       body: Stack(
         children: [
@@ -312,7 +342,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // BOTTOM NAV (NEU: 4 ICONS)
+          // BOTTOM NAV (3 ICONS: Home, Kalender, Pläne)
           Positioned(
             bottom: 0,
             left: 0,
@@ -333,7 +363,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // 1. Home
+                      // 1. Home (Aktiv)
                       Icon(Icons.home_filled, color: dynamicColor, size: 30),
 
                       // 2. Kalender
@@ -343,39 +373,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           size: 26,
                         ),
                         color: Colors.grey,
-                        onPressed:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const CalendarScreen(),
-                              ),
-                            ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CalendarScreen(),
+                          ),
+                        ),
                       ),
 
-                      // 3. NEU: PLÄNE
+                      // 3. Pläne
                       IconButton(
                         icon: const Icon(Icons.fact_check_outlined, size: 26),
                         color: Colors.grey,
-                        onPressed:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const PlansScreen(),
-                              ),
-                            ),
-                      ),
-
-                      // 4. NEU: SETTINGS (von oben hierher verschoben)
-                      IconButton(
-                        icon: const Icon(Icons.settings_outlined, size: 26),
-                        color: Colors.grey,
-                        onPressed:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SettingsScreen(),
-                              ),
-                            ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PlansScreen(),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -397,12 +412,11 @@ class GaugePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width / 2) - 20;
-    final bgPaint =
-        Paint()
-          ..color = Colors.white.withOpacity(0.05)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 20
-          ..strokeCap = StrokeCap.round;
+    final bgPaint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 20
+      ..strokeCap = StrokeCap.round;
     const startAngle = 135 * 3.14159 / 180;
     const sweepAngle = 270 * 3.14159 / 180;
     canvas.drawArc(
@@ -412,13 +426,12 @@ class GaugePainter extends CustomPainter {
       false,
       bgPaint,
     );
-    final glowPaint =
-        Paint()
-          ..color = color.withOpacity(0.4)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, glowRadius)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 20
-          ..strokeCap = StrokeCap.round;
+    final glowPaint = Paint()
+      ..color = color.withOpacity(0.4)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, glowRadius)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 20
+      ..strokeCap = StrokeCap.round;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
@@ -433,14 +446,13 @@ class GaugePainter extends CustomPainter {
       colors: [color.withOpacity(0.5), color],
       transform: GradientRotation(startAngle - 0.1),
     );
-    final valuePaint =
-        Paint()
-          ..shader = gradient.createShader(
-            Rect.fromCircle(center: center, radius: radius),
-          )
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 20
-          ..strokeCap = StrokeCap.round;
+    final valuePaint = Paint()
+      ..shader = gradient.createShader(
+        Rect.fromCircle(center: center, radius: radius),
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 20
+      ..strokeCap = StrokeCap.round;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
