@@ -95,27 +95,52 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   ) {
     if (userProfile == null) return [];
 
-    // 1. Ghost Injections generieren
     List<InjectionModel> allInjections = [...realInjections];
 
     if (plans != null && plans.isNotEmpty) {
       for (var plan in plans) {
         if (!plan.isActive) continue;
 
+        final int bufferHours = userProfile.injectionWindowHours ?? 12;
+
         DateTime simDate = plan.nextDueDate;
-        // Wir simulieren bis zum Ende des Graphen + Buffer
+
+        // Performance Skip für weit vergangene Pläne
+        if (simDate.isBefore(start.subtract(const Duration(days: 30)))) {
+          final diffDays = start.difference(simDate).inDays;
+          final intervalsToSkip = diffDays ~/ plan.intervalDays;
+          if (intervalsToSkip > 0) {
+            // FIX: Hier explizit .toInt() um 'num' Fehler zu vermeiden
+            simDate = simDate.add(
+              Duration(days: (intervalsToSkip * plan.intervalDays).toInt()),
+            );
+          }
+        }
+
         while (simDate.isBefore(end.add(const Duration(days: 10)))) {
-          allInjections.add(
-            InjectionModel(
-              id: 'sim_${simDate.millisecondsSinceEpoch}',
-              timestamp: simDate,
-              amountMg: plan.amountMg,
-              ester: plan.ester,
-              method: plan.method,
-              // FIX: createdAt als int (0)
-              createdAt: 0,
-            ),
-          );
+          bool collisionDetected = false;
+
+          for (var realInj in realInjections) {
+            final diff = realInj.timestamp.difference(simDate).inHours.abs();
+            if (diff <= bufferHours) {
+              collisionDetected = true;
+              break;
+            }
+          }
+
+          if (!collisionDetected) {
+            allInjections.add(
+              InjectionModel(
+                id: 'sim_${simDate.millisecondsSinceEpoch}',
+                timestamp: simDate,
+                amountMg: plan.amountMg,
+                ester: plan.ester,
+                method: plan.method,
+                createdAt: 0,
+              ),
+            );
+          }
+
           simDate = simDate.add(Duration(days: plan.intervalDays));
         }
       }
@@ -149,7 +174,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     return spots;
   }
 
-  // --- REST UNVERÄNDERT (nur build Methode) ---
   @override
   Widget build(BuildContext context) {
     final injections = ref.watch(injectionListProvider).value ?? [];

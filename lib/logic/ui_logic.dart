@@ -1,9 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
-
-// --- SETTINGS PROVIDER (Haptik) ---
-// Einfacher StateProvider für den MVP. Später in SharedPreferences speichern.
-final hapticFeedbackProvider = StateProvider<bool>((ref) => true);
 
 // --- FARB LOGIK ---
 class TRTColors {

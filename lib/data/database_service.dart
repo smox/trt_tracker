@@ -19,8 +19,8 @@ class DatabaseService {
 
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
-    // Name geändert, um sauberen Neustart zu erzwingen (Tabelle neu)
-    final path = join(dbPath, 'trt_tracker_v3.db');
+    // V4, um die neue Spalte zu erzwingen
+    final path = join(dbPath, 'trt_tracker_v4.db');
 
     return await openDatabase(path, version: 1, onCreate: _onCreate);
   }
@@ -39,13 +39,13 @@ class DatabaseService {
         birth_date INTEGER,
         therapy_start INTEGER,
         created_at INTEGER,
-        start_of_week INTEGER DEFAULT 1
+        start_of_week INTEGER DEFAULT 1,
+        injection_window_hours INTEGER DEFAULT 12
       )
     ''');
 
-    // Initialen leeren User anlegen
     await db.execute(
-      "INSERT INTO user_profile (id, correction_factor) VALUES ('1', 1.0)",
+      "INSERT INTO user_profile (id, correction_factor, injection_window_hours) VALUES ('1', 1.0, 12)",
     );
 
     // 2. Injektions-Historie
@@ -75,7 +75,7 @@ class DatabaseService {
       )
     ''');
 
-    // 4. NEU: Injektions-PLÄNE
+    // 4. Injektions-PLÄNE
     await db.execute('''
       CREATE TABLE injection_plans (
         id TEXT PRIMARY KEY,
@@ -91,6 +91,6 @@ class DatabaseService {
       )
     ''');
 
-    print("✅ Datenbank Tabellen (v3) korrekt erstellt!");
+    print("✅ Datenbank Tabellen (v4) korrekt erstellt!");
   }
 }

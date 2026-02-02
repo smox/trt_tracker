@@ -12,7 +12,8 @@ class UserProfileModel {
   final int birthDate;
   final int therapyStart;
   final int createdAt;
-  final int startOfWeek; // 1 = Montag, 7 = Sonntag
+  final int startOfWeek;
+  final int injectionWindowHours; // NEU: Puffer in Stunden
 
   UserProfileModel({
     required this.id,
@@ -25,7 +26,8 @@ class UserProfileModel {
     required this.birthDate,
     required this.therapyStart,
     required this.createdAt,
-    this.startOfWeek = 1, // Default Montag
+    this.startOfWeek = 1,
+    this.injectionWindowHours = 12, // Default 12h
   });
 
   Map<String, dynamic> toMap() {
@@ -34,15 +36,14 @@ class UserProfileModel {
       'name': name,
       'weight': weight,
       'height': height,
-      'body_fat_percentage':
-          bodyFatPercentage, // Name konsistent mit fromMap gemacht
+      'body_fat_percentage': bodyFatPercentage,
       'correction_factor': correctionFactor,
-      // WICHTIG: Wir speichern jetzt den String, damit fromMap funktioniert!
       'preferred_unit': preferredUnit.toString(),
       'birth_date': birthDate,
       'therapy_start': therapyStart,
       'created_at': createdAt,
-      'start_of_week': startOfWeek, // NEU
+      'start_of_week': startOfWeek,
+      'injection_window_hours': injectionWindowHours, // NEU
     };
   }
 
@@ -58,6 +59,7 @@ class UserProfileModel {
     int? therapyStart,
     int? createdAt,
     int? startOfWeek,
+    int? injectionWindowHours,
   }) {
     return UserProfileModel(
       id: id ?? this.id,
@@ -71,6 +73,7 @@ class UserProfileModel {
       therapyStart: therapyStart ?? this.therapyStart,
       createdAt: createdAt ?? this.createdAt,
       startOfWeek: startOfWeek ?? this.startOfWeek,
+      injectionWindowHours: injectionWindowHours ?? this.injectionWindowHours,
     );
   }
 
@@ -98,11 +101,14 @@ class UserProfileModel {
           DateTime.now().millisecondsSinceEpoch,
       startOfWeek:
           map['start_of_week'] != null ? (map['start_of_week'] as int) : 1,
+      injectionWindowHours:
+          map['injection_window_hours'] != null
+              ? (map['injection_window_hours'] as int)
+              : 12, // Fallback
     );
   }
 
   String toJson() => json.encode(toMap());
-
   factory UserProfileModel.fromJson(String source) =>
       UserProfileModel.fromMap(json.decode(source));
 }

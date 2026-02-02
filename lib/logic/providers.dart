@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../data/database_service.dart';
 import '../data/models/enums.dart';
 import '../data/models/user_profile_model.dart';
@@ -26,8 +27,8 @@ final userRepoProvider = Provider<UserRepository>((ref) {
 // 3. User Profile
 final userProfileProvider =
     AsyncNotifierProvider<UserProfileController, UserProfileModel>(() {
-      return UserProfileController();
-    });
+  return UserProfileController();
+});
 
 class UserProfileController extends AsyncNotifier<UserProfileModel> {
   @override
@@ -56,6 +57,7 @@ class UserProfileController extends AsyncNotifier<UserProfileModel> {
         preferredUnit: preferredUnit,
         birthDate: birthDate.millisecondsSinceEpoch,
         therapyStart: therapyStart.millisecondsSinceEpoch,
+        injectionWindowHours: 12,
       );
       await repo.updateUserProfile(updatedProfile);
       return updatedProfile;
@@ -65,12 +67,14 @@ class UserProfileController extends AsyncNotifier<UserProfileModel> {
   Future<void> updateSettings({
     MassUnit? preferredUnit,
     int? startOfWeek,
+    int? injectionWindowHours,
   }) async {
     final currentState = state.value;
     if (currentState == null) return;
     final updatedProfile = currentState.copyWith(
       preferredUnit: preferredUnit,
       startOfWeek: startOfWeek,
+      injectionWindowHours: injectionWindowHours,
     );
     final repo = ref.read(userRepoProvider);
     await repo.updateUserProfile(updatedProfile);
@@ -87,8 +91,8 @@ final injectionRepoProvider = Provider<InjectionRepository>((ref) {
 // 5. Injection List
 final injectionListProvider =
     AsyncNotifierProvider<InjectionListController, List<InjectionModel>>(() {
-      return InjectionListController();
-    });
+  return InjectionListController();
+});
 
 class InjectionListController extends AsyncNotifier<List<InjectionModel>> {
   @override
@@ -115,7 +119,7 @@ final currentLevelProvider = Provider<double>((ref) {
   final userProfile = ref.watch(userProfileProvider).value;
   final injections = ref.watch(injectionListProvider).value;
   final calibrationPoints = ref.watch(calibrationPointsProvider).value;
-
+  
   if (userProfile == null || injections == null) {
     return 0.0;
   }
@@ -145,10 +149,9 @@ final labResultRepoProvider = Provider<LabResultRepository>((ref) {
 // 8. Calibration Points
 final calibrationPointsProvider =
     AsyncNotifierProvider<CalibrationPointsController, List<LabResultModel>>(
-      () {
-        return CalibrationPointsController();
-      },
-    );
+        () {
+  return CalibrationPointsController();
+});
 
 class CalibrationPointsController extends AsyncNotifier<List<LabResultModel>> {
   @override
@@ -194,13 +197,12 @@ class CalibrationPointsController extends AsyncNotifier<List<LabResultModel>> {
 
 // 9. Plan Provider
 final injectionPlanProvider =
-    AsyncNotifierProvider<InjectionPlanController, List<InjectionPlanModel>>(
-      () {
-        return InjectionPlanController();
-      },
-    );
+    AsyncNotifierProvider<InjectionPlanController, List<InjectionPlanModel>>(() {
+  return InjectionPlanController();
+});
 
 class InjectionPlanController extends AsyncNotifier<List<InjectionPlanModel>> {
+  
   @override
   Future<List<InjectionPlanModel>> build() async {
     final db = await ref.read(dbServiceProvider).database;
@@ -211,7 +213,7 @@ class InjectionPlanController extends AsyncNotifier<List<InjectionPlanModel>> {
   Future<void> addPlan(InjectionPlanModel plan) async {
     final db = await ref.read(dbServiceProvider).database;
     await db.insert('injection_plans', plan.toMap());
-
+    
     if (plan.isActive) {
       _scheduleNextNotification(plan);
     }
@@ -220,60 +222,27 @@ class InjectionPlanController extends AsyncNotifier<List<InjectionPlanModel>> {
 
   Future<void> updatePlan(InjectionPlanModel plan) async {
     final db = await ref.read(dbServiceProvider).database;
-    await db.update(
-      'injection_plans',
-      plan.toMap(),
-      where: 'id = ?',
-      whereArgs: [plan.id],
-    );
-
+    await db.update('injection_plans', plan.toMap(), where: 'id = ?', whereArgs: [plan.id]);
+    
     await NotificationService().cancelNotification(plan.id.hashCode);
     if (plan.isActive) {
       _scheduleNextNotification(plan);
     }
     ref.invalidateSelf();
   }
-
-  // FIX: Stabile Zeitberechnung
+  
   Future<void> markPlanAsDone(String planId) async {
     final plans = state.value ?? [];
     try {
       final plan = plans.firstWhere((element) => element.id == planId);
-
-      // WICHTIG: Wir nehmen das GEPLANTE Datum als Basis, nicht "Jetzt".
-      // So bleibt der Donnerstag ein Donnerstag, auch wenn man Freitag bucht.
-      // Wir addieren einfach das Intervall (z.B. 7 Tage) drauf.
-      DateTime nextBase = plan.nextDueDate.add(
-        Duration(days: plan.intervalDays),
-      );
-
-      // Falls der User den Plan lange ignoriert hat und nextBase immer noch in der Vergangenheit liegt:
-      // Option A: Wir zwingen es in die Zukunft (Rhythmusbruch, aber praktisch)
-      // Option B: Wir lassen es mathematisch korrekt (Rhythmus stabil, aber User muss mehrmals klicken)
-      // -> Wir wählen hier eine smarte Mischung: Wenn es > 1 Intervall in der Vergangenheit ist, holen wir es ran, aber behalten den Wochentag.
-
-      if (nextBase.isBefore(
-        DateTime.now().subtract(Duration(days: plan.intervalDays)),
-      )) {
-        // Logik um auf den nächsten passenden Wochentag in der Zukunft zu springen
-        // Das ist komplex, für V1 bleiben wir beim strikten Rhythmus (Option B).
-        // Der User wird ja wohl nicht 3 Wochen vergessen zu tracken ;)
-      }
-
-      // Uhrzeit sicherstellen (falls durch Sommerzeit verschoben, wobei DateTime das meist regelt)
+      DateTime nextBase = plan.nextDueDate.add(Duration(days: plan.intervalDays));
       final newDate = DateTime(
-        nextBase.year,
-        nextBase.month,
-        nextBase.day,
-        plan.reminderTimeHour,
-        plan.reminderTimeMinute,
+        nextBase.year, nextBase.month, nextBase.day, 
+        plan.reminderTimeHour, plan.reminderTimeMinute
       );
-
       final updatedPlan = plan.copyWith(nextDueDate: newDate);
       await updatePlan(updatedPlan);
-    } catch (e) {
-      // Plan nicht gefunden
-    }
+    } catch (e) {}
   }
 
   Future<void> deletePlan(String id) async {
@@ -293,3 +262,7 @@ class InjectionPlanController extends AsyncNotifier<List<InjectionPlanModel>> {
     );
   }
 }
+
+// 10. NEU: Haptic Feedback Provider
+// Einfacher StateProvider, der global speichert, ob Vibration an ist (Default: true)
+final hapticFeedbackProvider = StateProvider<bool>((ref) => true);

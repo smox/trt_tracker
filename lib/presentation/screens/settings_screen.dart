@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trt_tracker/data/models/enums.dart';
 import 'package:trt_tracker/logic/providers.dart';
-import 'package:trt_tracker/logic/ui_logic.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -27,7 +26,7 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   _buildSectionHeader("Allgemein"),
 
-                  // 1. WOCHENSTART
+                  // WOCHENSTART
                   _buildSettingsTile(
                     icon: Icons.calendar_today,
                     title: "Wochenstart",
@@ -53,7 +52,7 @@ class SettingsScreen extends ConsumerWidget {
 
                   const SizedBox(height: 16),
 
-                  // 2. EINHEITEN
+                  // EINHEITEN
                   _buildSettingsTile(
                     icon: Icons.science,
                     title: "Bevorzugte Einheit",
@@ -89,9 +88,95 @@ class SettingsScreen extends ConsumerWidget {
                   ),
 
                   const SizedBox(height: 16),
+
+                  // NEU: KOLLISONS-PUFFER
+                  _buildSectionHeader("Analyse & Pläne"),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E1E),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.merge, color: Color(0xFF64FFDA)),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Injektions-Fenster",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Pufferzeit für Erkennung von geplanten vs. echten Injektionen (+/- ${userProfile.injectionWindowHours} Std.)",
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Text(
+                              "1h",
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 10,
+                              ),
+                            ),
+                            Expanded(
+                              child: Slider(
+                                value:
+                                    userProfile.injectionWindowHours.toDouble(),
+                                min: 1,
+                                max: 24,
+                                divisions: 23,
+                                label: "${userProfile.injectionWindowHours}h",
+                                activeColor: const Color(0xFF64FFDA),
+                                inactiveColor: Colors.white10,
+                                onChanged: (val) {
+                                  ref
+                                      .read(userProfileProvider.notifier)
+                                      .updateSettings(
+                                        injectionWindowHours: val.toInt(),
+                                      );
+                                },
+                              ),
+                            ),
+                            const Text(
+                              "24h",
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
                   _buildSectionHeader("Bedienung"),
 
-                  // 3. HAPTIK
+                  // HAPTIK
                   SwitchListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
